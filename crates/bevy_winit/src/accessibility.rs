@@ -86,56 +86,80 @@ fn update_accessibility_nodes(
     )>,
     node_entities: Query<Entity, With<AccessibilityNode>>,
 ) {
-    if let Ok((primary_window_id, primary_window)) = primary_window.get_single() {
-        if let Some(adapter) = adapters.get(&primary_window_id) {
-            let should_run = focus.is_changed() || !nodes.is_empty();
-            if should_run {
-                adapter.update_if_active(|| {
-                    let mut to_update = vec![];
-                    let mut name = None;
-                    if primary_window.focused {
-                        let title = primary_window.title.clone();
-                        name = Some(title.into_boxed_str());
-                    }
-                    let focus_id = (*focus).unwrap_or_else(|| primary_window_id).to_bits();
-                    let mut root_children = vec![];
-                    for (entity, node, children, parent) in &nodes {
-                        let mut node = (**node).clone();
-                        if let Some(parent) = parent {
-                            if !node_entities.contains(**parent) {
-                                root_children.push(NodeId(entity.to_bits()));
-                            }
-                        } else {
-                            root_children.push(NodeId(entity.to_bits()));
-                        }
-                        if let Some(children) = children {
-                            for child in children {
-                                if node_entities.contains(*child) {
-                                    node.push_child(NodeId(child.to_bits()));
-                                }
-                            }
-                        }
-                        to_update.push((
-                            NodeId(entity.to_bits()),
-                            node.build(&mut NodeClassSet::lock_global()),
-                        ));
-                    }
-                    let mut root = NodeBuilder::new(Role::Window);
-                    if let Some(name) = name {
-                        root.set_name(name);
-                    }
-                    root.set_children(root_children);
-                    let root = root.build(&mut NodeClassSet::lock_global());
-                    let window_update = (NodeId(primary_window_id.to_bits()), root);
-                    to_update.insert(0, window_update);
-                    TreeUpdate {
-                        nodes: to_update,
-                        tree: None,
-                        focus: NodeId(focus_id),
-                    }
-                });
+    let Ok((primary_window_id, primary_window)) = primary_window.get_single() else {
+        return;
+    };
+    let Some(adapter) = adapters.get(&primary_window_id) else {
+        return;
+    };
+    let should_run = focus.is_changed() || !nodes.is_empty();
+    if !should_run {
+        return;
+    }
+    adapter.update_if_active(|| {
+        update_adapter(
+            primary_window,
+            primary_window_id,
+            focus,
+            nodes,
+            node_entities,
+        )
+    });
+}
+
+fn update_adapter(
+    primary_window: &Window,
+    primary_window_id: Entity,
+    focus: Res<Focus>,
+    nodes: Query<(
+        Entity,
+        &AccessibilityNode,
+        Option<&Children>,
+        Option<&Parent>,
+    )>,
+    node_entities: Query<'_, '_, Entity, With<AccessibilityNode>>,
+) -> TreeUpdate {
+    let mut to_update = vec![];
+    let mut name = None;
+    if primary_window.focused {
+        let title = primary_window.title.clone();
+        name = Some(title.into_boxed_str());
+    }
+    let focus_id = (*focus).unwrap_or_else(|| primary_window_id).to_bits();
+    let mut root_children = vec![];
+    for (entity, node, children, parent) in &nodes {
+        let mut node = (**node).clone();
+        if let Some(parent) = parent {
+            if !node_entities.contains(**parent) {
+                root_children.push(NodeId(entity.to_bits()));
+            }
+        } else {
+            root_children.push(NodeId(entity.to_bits()));
+        }
+        if let Some(children) = children {
+            for child in children {
+                if node_entities.contains(*child) {
+                    node.push_child(NodeId(child.to_bits()));
+                }
             }
         }
+        to_update.push((
+            NodeId(entity.to_bits()),
+            node.build(&mut NodeClassSet::lock_global()),
+        ));
+    }
+    let mut root = NodeBuilder::new(Role::Window);
+    if let Some(name) = name {
+        root.set_name(name);
+    }
+    root.set_children(root_children);
+    let root = root.build(&mut NodeClassSet::lock_global());
+    let window_update = (NodeId(primary_window_id.to_bits()), root);
+    to_update.insert(0, window_update);
+    TreeUpdate {
+        nodes: to_update,
+        tree: None,
+        focus: NodeId(focus_id),
     }
 }
 
