@@ -92,19 +92,17 @@ fn update_accessibility_nodes(
     let Some(adapter) = adapters.get(&primary_window_id) else {
         return;
     };
-    let should_run = focus.is_changed() || !nodes.is_empty();
-    if !should_run {
-        return;
+    if focus.is_changed() || !nodes.is_empty() {
+        adapter.update_if_active(|| {
+            update_adapter(
+                primary_window,
+                primary_window_id,
+                focus,
+                nodes,
+                node_entities,
+            )
+        });
     }
-    adapter.update_if_active(|| {
-        update_adapter(
-            primary_window,
-            primary_window_id,
-            focus,
-            nodes,
-            node_entities,
-        )
-    });
 }
 
 fn update_adapter(
