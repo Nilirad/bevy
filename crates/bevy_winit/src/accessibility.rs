@@ -117,37 +117,35 @@ fn update_adapter(
     )>,
     node_entities: Query<Entity, With<AccessibilityNode>>,
 ) -> TreeUpdate {
-    let mut to_update = vec![];
-    let mut root = NodeBuilder::new(Role::Window);
-    if primary_window.focused {
-        let title = primary_window.title.clone();
-        root.set_name(title.into_boxed_str());
-    }
-    let focus_id = (*focus).unwrap_or_else(|| primary_window_id).to_bits();
+    let mut update_list = vec![];
     let mut root_children = vec![];
     for (entity, node, children, parent) in &nodes {
         let mut node = (**node).clone();
         try_push_node(parent, &node_entities, &mut root_children, entity);
         push_children(children, &node_entities, &mut node);
-        to_update.push((
-            NodeId(entity.to_bits()),
-            node.build(&mut NodeClassSet::lock_global()),
-        ));
+        let node_id = NodeId(entity.to_bits());
+        let node = node.build(&mut NodeClassSet::lock_global());
+        update_list.push((node_id, node));
     }
-    root.set_children(root_children);
-    let root = root.build(&mut NodeClassSet::lock_global());
-    let window_update = (NodeId(primary_window_id.to_bits()), root);
-    to_update.insert(0, window_update);
+    let mut window_node = NodeBuilder::new(Role::Window);
+    if primary_window.focused {
+        let title = primary_window.title.clone();
+        window_node.set_name(title.into_boxed_str());
+    }
+    window_node.set_children(root_children);
+    let window_node = window_node.build(&mut NodeClassSet::lock_global());
+    let window_node_id = NodeId(primary_window_id.to_bits());
+    update_list.insert(0, (window_node_id, window_node));
     TreeUpdate {
-        nodes: to_update,
+        nodes: update_list,
         tree: None,
-        focus: NodeId(focus_id),
+        focus: NodeId(focus.unwrap_or(primary_window_id).to_bits()),
     }
 }
 
 fn try_push_node(
     parent: Option<&Parent>,
-    node_entities: &Query<'_, '_, Entity, With<AccessibilityNode>>,
+    node_entities: &Query<Entity, With<AccessibilityNode>>,
     root_children: &mut Vec<NodeId>,
     entity: Entity,
 ) {
