@@ -129,20 +129,8 @@ fn update_adapter(
     let mut root_children = vec![];
     for (entity, node, children, parent) in &nodes {
         let mut node = (**node).clone();
-        if let Some(parent) = parent {
-            if !node_entities.contains(**parent) {
-                root_children.push(NodeId(entity.to_bits()));
-            }
-        } else {
-            root_children.push(NodeId(entity.to_bits()));
-        }
-        if let Some(children) = children {
-            for child in children {
-                if node_entities.contains(*child) {
-                    node.push_child(NodeId(child.to_bits()));
-                }
-            }
-        }
+        try_push_node(parent, &node_entities, &mut root_children, entity);
+        push_children(children, &node_entities, &mut node);
         to_update.push((
             NodeId(entity.to_bits()),
             node.build(&mut NodeClassSet::lock_global()),
@@ -156,6 +144,36 @@ fn update_adapter(
         nodes: to_update,
         tree: None,
         focus: NodeId(focus_id),
+    }
+}
+
+fn try_push_node(
+    parent: Option<&Parent>,
+    node_entities: &Query<'_, '_, Entity, With<AccessibilityNode>>,
+    root_children: &mut Vec<NodeId>,
+    entity: Entity,
+) {
+    if let Some(parent) = parent {
+        if !node_entities.contains(**parent) {
+            root_children.push(NodeId(entity.to_bits()));
+        }
+    } else {
+        root_children.push(NodeId(entity.to_bits()));
+    }
+}
+
+fn push_children(
+    children: Option<&Children>,
+    node_entities: &Query<Entity, With<AccessibilityNode>>,
+    node: &mut NodeBuilder,
+) {
+    let Some(children) = children else {
+        return;
+    };
+    for child in children {
+        if node_entities.contains(*child) {
+            node.push_child(NodeId(child.to_bits()));
+        }
     }
 }
 
