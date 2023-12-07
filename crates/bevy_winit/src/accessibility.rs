@@ -117,13 +117,13 @@ fn update_adapter(
         Option<&Children>,
         Option<&Parent>,
     )>,
-    node_entities: Query<'_, '_, Entity, With<AccessibilityNode>>,
+    node_entities: Query<Entity, With<AccessibilityNode>>,
 ) -> TreeUpdate {
     let mut to_update = vec![];
-    let mut name = None;
+    let mut root = NodeBuilder::new(Role::Window);
     if primary_window.focused {
         let title = primary_window.title.clone();
-        name = Some(title.into_boxed_str());
+        root.set_name(title.into_boxed_str());
     }
     let focus_id = (*focus).unwrap_or_else(|| primary_window_id).to_bits();
     let mut root_children = vec![];
@@ -147,10 +147,6 @@ fn update_adapter(
             NodeId(entity.to_bits()),
             node.build(&mut NodeClassSet::lock_global()),
         ));
-    }
-    let mut root = NodeBuilder::new(Role::Window);
-    if let Some(name) = name {
-        root.set_name(name);
     }
     root.set_children(root_children);
     let root = root.build(&mut NodeClassSet::lock_global());
