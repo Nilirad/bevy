@@ -150,7 +150,7 @@ fn try_push_node(
     entity: Entity,
 ) {
     if let Some(parent) = parent {
-        if !node_entities.contains(**parent) {
+        if !node_entities.contains(parent.get()) {
             window_children.push(NodeId(entity.to_bits()));
         }
     } else {
